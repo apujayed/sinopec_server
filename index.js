@@ -5,9 +5,9 @@ const mysql = require("mysql");
 const cors = require("cors");
 const fs = require("fs");
 const { log } = require("console");
-app.use(cors());
+app.use(cors({origin:'*'}));
 app.use(express.json());
-
+//
 const db = mysql.createConnection({
   user: "tecadmin",
   host: "localhost",
