@@ -16,6 +16,14 @@ const db = mysql.createConnection({
 });
 
 
+// const db = mysql.createConnection({
+//   user: "root",
+//   host: "localhost",
+//   password: "",
+//   database: "sinopec_db",
+// });
+
+
 // ...
 
 // Schedule tasks to be run on the server.
@@ -51,7 +59,20 @@ const db = mysql.createConnection({
 // WHERE user_id =1
 // ORDER by timestamp
 
+app.post("/addbank", (req, res) => {
+  const b_data=req.body.data;
 
+  db.query("INSERT INTO `bank`( `user_id`, `username`, `acno`, `bankname`, `email`) VALUES (?,?,?,?,?)", 
+  [b_data.user_id,b_data.user_name,b_data.acno,b_data.bank,b_data.mail],
+  (err, result) => {
+    if (err) {
+      console.log(err);
+    } else {
+      res.send(result);
+    
+    }
+  });
+});
 
 app.post("/withdrawreq", (req, res) => {
   const data=req.body.data;
@@ -67,8 +88,8 @@ app.post("/withdrawreq", (req, res) => {
       // console.log(result);
      
         db.query(
-          "INSERT INTO withdraw(`user_id`, `amount`, `particular`, `status`) VALUES (?,?,?,?)",
-          [data.user_id,data.amount,'Withdraw','Pending'],
+          "INSERT INTO `report`(`user_id`, `payment`, `receive`,`trxid`, `particular`, `status`, `type`) VALUES (?,?,?,?,?,?,?)",
+          [data.user_id,data.amount,0,'',data.acno,'Pending','Withdraw'],
           (err, result) => {
             if (err) {
              console.log(err)
@@ -86,10 +107,24 @@ app.post("/withdrawreq", (req, res) => {
 });
 
 
+app.post("/addrecharge", (req, res) => {
+  const data=req.body.data;
+  db.query("INSERT INTO `report`(`user_id`, `payment`, `receive`,`trxid`, `particular`, `status`, `type`) VALUES (?,?,?,?,?,?,?)", 
+  [data.user_id,0,data.amount,data.trxid,'bKash',data.status,'Recharge'],
+  (err, result) => {
+    if (err) {
+      console.log(err);
+    } else {
+      res.send(result);
+    
+    }
+  });
+});
+
 app.post("/withdrawrec", (req, res) => {
   const u_id=req.body.data;
 
-  db.query("SELECT * FROM `withdraw` WHERE user_id=? order by id desc", 
+  db.query("SELECT * FROM `report` WHERE type='Withdraw' and user_id=? order by id desc", 
   [u_id],
   (err, result) => {
     if (err) {
@@ -116,10 +151,10 @@ app.post("/login", (req, res) => {
   });
 });
 
-app.post("/userbalance", (req, res) => {
+app.post("/userdetails", (req, res) => {
   const u_id=req.body.data;
 
-  db.query("SELECT sum(recharge.amount)as recharge, sum(dailyreward.amount) as reward,sum(withdraw.amount) as withdraw FROM `dailyreward` INNER join withdraw ON dailyreward.user_id=withdraw.user_id INNER join recharge ON dailyreward.user_id=recharge.user_id WHERE dailyreward.user_id=?", 
+  db.query("SELECT users.*,package.name as p_name FROM `users` INNER JOIN package ON users.package=package.id WHERE users.id=?", 
   [u_id],
   (err, result) => {
     if (err) {
@@ -127,6 +162,68 @@ app.post("/userbalance", (req, res) => {
     } else {
       res.send(result);
       console.log(result);
+    }
+  });
+});
+
+
+app.post("/allbank", (req, res) => {
+  const u_id=req.body.data;
+
+  db.query("SELECT * FROM `bank` WHERE  user_id=?", 
+  [u_id],
+  (err, result) => {
+    if (err) {
+      console.log(err);
+    } else {
+      res.send(result);
+      console.log(result);
+    }
+  });
+});
+
+app.post("/dailyreward", (req, res) => {
+  const u_id=req.body.data;
+
+  db.query("SELECT * FROM `report` WHERE type='Reward' and user_id=?", 
+  [u_id],
+  (err, result) => {
+    if (err) {
+      console.log(err);
+    } else {
+      res.send(result);
+      console.log(result);
+    }
+  });
+});
+
+
+// app.post("/userrecharge", (req, res) => {
+//   const u_id=req.body.data;
+
+//   db.query("SELECT sum(amount) as recharge FROM recharge WHERE user_id=? AND status='Confirmed'", 
+//   [u_id],
+//   (err, result) => {
+//     if (err) {
+//       console.log(err);
+//     } else {
+//       res.send(result);
+//       console.log(result);
+//     }
+//   });
+// });
+
+app.post("/userbalance", (req, res) => {
+  const u_id=req.body.data;
+
+  db.query("SELECT COALESCE(sum(case when type='Withdraw' THEN payment end),0) as withdraw,COALESCE(sum(case when type='Recharge' THEN receive end),0) as recharge,COALESCE(sum(case when type='Reward' THEN receive end),0) as reward FROM `report` WHERE user_id=1", 
+  [u_id],
+  (err, result) => {
+    if (err) {
+      console.log(err);
+    } else {
+      res.send(result);
+     
     }
   });
 });
@@ -146,7 +243,7 @@ app.get("/packages", (req, res) => {
 app.post("/recharge", (req, res) => {
   const u_id=req.body.data;
 
-  db.query("SELECT * FROM `recharge` WHERE user_id=?", 
+  db.query("SELECT * FROM `report` WHERE type='Recharge' and user_id=? order by id desc", 
   [u_id],
   (err, result) => {
     if (err) {
@@ -177,7 +274,9 @@ app.get("/comd", (req, res) => {
 app.post("/uppackages", (req, res) => {
   // const id = req.body.id;
   const data = req.body.data;
-
+  const uid = req.body.uid;
+  const rent = req.body.rent;
+console.log(req.body.uid);
   db.query(
     "UPDATE users SET package=? WHERE id=1",
     [data],
@@ -185,7 +284,20 @@ app.post("/uppackages", (req, res) => {
       if (err) {
         console.log(err);
       } else {
-        res.send(result);
+
+        db.query(
+          "INSERT INTO `report`(`user_id`, `payment`,`particular`, `status`, `type`) VALUES (?,?,?,?,?)",
+          [uid,rent,'Package update','Confirmed','Withdraw'],
+          (err, result) => {
+            if (err) {
+              console.log(err);
+            } else {
+              res.send(result);
+            }
+          }
+        );
+
+       
       }
     }
   );
